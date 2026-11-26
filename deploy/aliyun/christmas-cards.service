@@ -1,0 +1,23 @@
+[Unit]
+Description=Christmas cards (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+WorkingDirectory=__APP_DIR__
+Environment=NODE_ENV=production
+Environment=PORT=__PORT__
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=/usr/bin/env node node_modules/next/dist/bin/next start -p __PORT__ -H 127.0.0.1
+Restart=always
+RestartSec=3
+# Letters live in __APP_DIR__/data; keep it writable, everything else read-only.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__APP_DIR__/data
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
