@@ -1,28 +1,13 @@
 import type { Metadata } from "next";
-import { Caveat, Inter, Long_Cang } from "next/font/google";
 import Script from "next/script";
 import { EngagementTracker } from "@/components/EngagementTracker";
 import { STATS_PATH, TRACKED_DOMAIN, UMAMI_WEBSITE_ID } from "@/lib/analytics/umamiProxy";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const caveat = Caveat({
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  variable: "--font-caveat",
-});
-
-// Chinese handwriting for text on the card (font "hand-zh"). Self-hosted by
-// next/font at build time, so it loads where Google Fonts is blocked.
-const handZh = Long_Cang({
-  weight: "400",
-  preload: false,
-  variable: "--font-hand-zh",
-});
+// Fonts (Inter, Caveat, Long Cang) are vendored as woff2 under public/fonts and
+// declared here, instead of next/font/google: the latter downloads from Google
+// at build time, which a mainland China build host cannot reach. Regenerate with
+// scripts/vendor-fonts.mjs if the families change.
+import "./fonts.css";
 
 export const metadata: Metadata = {
   title: "Christmas Cards — 制作与分享你的圣诞贺卡",
@@ -36,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className={`${inter.variable} ${caveat.variable} ${handZh.variable}`}>
+    <html lang="zh-CN">
       <body className="font-sans antialiased bg-[#fbfaf9] text-stone-900">
         {/* Loading veil: first thing in the body so it paints before any JS.
             Pure CSS/SVG (no Three.js, no big images) so it can never fail to
