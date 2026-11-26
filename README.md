@@ -64,7 +64,8 @@ pnpm test         # vitest
 
 ## 部署
 
-部署到 Cloudflare(Workers + D1 + R2),完整步骤见 [docs/deploy.md](docs/deploy.md)。简版:
+部署到 Cloudflare(Workers + D1 + R2),完整步骤见 [docs/deploy.md](docs/deploy.md)。
+如果用 Cloudflare 的 Git 集成(连仓库、由 Cloudflare 构建),按 [DEPLOY.md](DEPLOY.md) 走。简版:
 
 ```bash
 cp wrangler.jsonc.example wrangler.jsonc   # 填入你的 D1 database_id 和域名
