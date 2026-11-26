@@ -68,7 +68,10 @@ install -m 0644 "$SRC_DIR/deploy/aliyun/christmas-cards.service" /etc/systemd/sy
 sed -i "s|__APP_DIR__|$APP_DIR|g; s|__APP_USER__|$APP_USER|g; s|__PORT__|$PORT|g" \
   /etc/systemd/system/christmas-cards.service
 systemctl daemon-reload
-systemctl enable --now christmas-cards
+systemctl enable christmas-cards
+# Restart explicitly: `enable --now` leaves an already-running service on the
+# previous build, which silently keeps serving old code.
+systemctl restart christmas-cards
 sleep 2
 systemctl --no-pager --lines=5 status christmas-cards || true
 
