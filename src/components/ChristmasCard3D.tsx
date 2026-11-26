@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { CARD_ASSETS } from "@/lib/cardAssets";
 import { CARD_H, CARD_THICKNESS, CARD_W } from "@/lib/cardConstants";
 import { createElementLayer, type ElementLayer, type LayerElement } from "@/lib/card/elementMeshes";
+import type { StickerEntry } from "@/lib/stickers/stickerManifest";
 import { localToPlacement, placementToLocal } from "@/lib/card/elementLayout";
 import type { ElementShape } from "@/lib/card/elementBounds";
 import { applyPaperStock } from "@/lib/card/paperStocks";
@@ -79,6 +80,8 @@ export interface ChristmasCard3DProps {
    * template's motifs and `message`.
    */
   elements?: LayerElement[];
+  /** Uploaded sticker images referenced by `elements` (data URLs). */
+  customStickers?: StickerEntry[];
   /**
    * false: the card ignores its own drag-open / tap gestures (the editor
    * drives it); the pointer lamp still follows the pointer.
@@ -290,6 +293,7 @@ export function ChristmasCard3D({
   onReady,
   onFirstFrame,
   elements,
+  customStickers,
   interactive = true,
   paper,
   zoom = 1,
@@ -343,6 +347,8 @@ export function ChristmasCard3D({
   const elementLayerRef = useRef<ElementLayer | null>(null);
   // Decided once per mount: a card is either an editor/letter card or a template card.
   const bareRef = useRef(elements !== undefined);
+  const customStickersRef = useRef(customStickers);
+  customStickersRef.current = customStickers;
   const handRef = useRef(hand);
   handRef.current = hand;
   const rigRef = useRef<HandRig | null>(null);
@@ -532,6 +538,7 @@ export function ChristmasCard3D({
       },
       maxAnisotropy,
       (m) => lampGate.install(m),
+      () => customStickersRef.current ?? [],
     );
 
     const liftedMatPool: THREE.MeshStandardMaterial[] = [];

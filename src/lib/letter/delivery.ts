@@ -69,6 +69,7 @@ export function toPublicLetter(letter: Letter, now: Date): PublicLetter {
           templateId: letter.templateId,
           paper: letter.paper,
           elements: letter.elements,
+          customStickers: letter.customStickers,
           audioUrl: letter.audioUrl,
           audioName: letter.audioName,
         }

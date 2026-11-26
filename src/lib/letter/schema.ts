@@ -6,6 +6,7 @@ import {
   SEAL_COLORS,
   STAMP_IDS,
   STICKER_IDS,
+  STICKER_MATERIALS,
   TEXT_SLOTS,
   type CardElement,
 } from "./model";
@@ -39,8 +40,17 @@ const placement = {
 
 const stickerElement = z.object({
   kind: z.literal("sticker"),
-  stickerId: z.enum(STICKER_IDS),
+  // Built-in ids are checked together with the letter's custom stickers below.
+  stickerId: z.string().trim().min(1).max(80),
   ...placement,
+});
+
+/** An uploaded sticker, embedded in the letter so the recipient sees it too. */
+const customStickerSchema = z.object({
+  id: z.string().regex(/^custom-[A-Za-z0-9_-]{6,64}$/, "自定义贴纸 ID 不合法"),
+  label: z.string().trim().min(1).max(60),
+  material: z.enum(STICKER_MATERIALS),
+  src: z.string().startsWith("data:image/").max(100_000, "贴纸图片太大"),
 });
 
 const textElement = z.object({
@@ -81,11 +91,31 @@ const draftShape = {
   seal: sealSchema,
   recipientName: z.string().trim().min(1, "请填写收件人").max(LIMITS.recipientLength),
   elements: z.array(elementSchema).max((LIMITS.stickersPerFace + LIMITS.textsPerFace) * FACES.length),
+  customStickers: z.array(customStickerSchema).max(LIMITS.customStickers, `最多上传 ${LIMITS.customStickers} 张贴纸`).optional(),
   audioUrl: audioUrl.nullable(),
   audioName: z.string().trim().max(160).nullable(),
 };
 
-function checkLimits(d: { elements: CardElement[] }, ctx: z.RefinementCtx): void {
+function checkLimits(d: { elements: CardElement[]; customStickers?: { id: string }[] }, ctx: z.RefinementCtx): void {
+  const custom = d.customStickers ?? [];
+  const seenCustom = new Set<string>();
+  for (const sticker of custom) {
+    if (seenCustom.has(sticker.id)) {
+      ctx.addIssue({ code: "custom", message: "自定义贴纸重复", path: ["customStickers"] });
+      break;
+    }
+    seenCustom.add(sticker.id);
+  }
+  // Every placed sticker must resolve either to the built-in winter set or to
+  // one of this letter's uploaded stickers.
+  const known = new Set<string>(STICKER_IDS);
+  for (const sticker of custom) known.add(sticker.id);
+  for (const element of d.elements) {
+    if (element.kind === "sticker" && !known.has(element.stickerId)) {
+      ctx.addIssue({ code: "custom", message: "贴纸不存在", path: ["elements"] });
+      break;
+    }
+  }
   for (const slot of TEXT_SLOTS) {
     if (d.elements.filter((e) => e.kind === "text" && e.slot === slot).length > 1) {
       ctx.addIssue({ code: "custom", message: "每个文字区只能有一段文字", path: ["elements"] });

@@ -108,7 +108,8 @@ describe("R2 upload store", () => {
 
 describe("D1 migration", () => {
   it("matches the schema the repository creates", () => {
-    const sql = readFileSync(path.join(process.cwd(), "migrations/0001_letters.sql"), "utf8").trim();
+    // Checked-out on Windows the file has CRLF endings; compare the SQL only.
+    const sql = readFileSync(path.join(process.cwd(), "migrations/0001_letters.sql"), "utf8").replace(/\r\n/g, "\n").trim();
     expect(sql).toBe(LETTERS_SCHEMA_SQL.trim());
   });
 });

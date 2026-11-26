@@ -38,8 +38,23 @@ export const STICKER_IDS = [
 ] as const;
 export type StickerId = (typeof STICKER_IDS)[number];
 
+export const STICKER_MATERIALS = ["paint", "foil", "pearl"] as const;
+export type StickerMaterial = (typeof STICKER_MATERIALS)[number];
+
+/**
+ * A sender-uploaded sticker. The image travels inside the letter as a data
+ * URL so the recipient sees it without a separate asset server.
+ */
+export interface CustomSticker {
+  id: string;
+  label: string;
+  material: StickerMaterial;
+  src: string;
+}
+
 export const LIMITS = {
-  stickersPerFace: 20,
+  /** One page holds a generous pile, since repeat taps stack copies. */
+  stickersPerFace: 30,
   textsPerFace: 5,
   textLength: 200,
   /** Greeting and signature are one short line each. */
@@ -47,6 +62,8 @@ export const LIMITS = {
   recipientLength: 40,
   minScale: 0.2,
   maxScale: 3,
+  /** Uploaded stickers kept with one letter (each is embedded as a data URL). */
+  customStickers: 8,
 } as const;
 
 /** Where an element sits on its face; x/y are 0..1 of the face's size. */
@@ -77,6 +94,8 @@ export interface LetterDraft {
   seal: Seal;
   recipientName: string;
   elements: CardElement[];
+  /** Sender-uploaded sticker images, referenced by `stickerId` in elements. */
+  customStickers?: CustomSticker[];
   audioUrl: string | null;
   audioName: string | null;
 }
@@ -111,6 +130,7 @@ export interface PublicLetter {
     templateId: CardTemplateId;
     paper: PaperStock;
     elements: CardElement[];
+    customStickers?: CustomSticker[];
     audioUrl: string | null;
     audioName: string | null;
   } | null;

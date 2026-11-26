@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "christmas-letters",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // No custom domain yet: the Worker is reachable on <name>.<account>.workers.dev.
+  // Letter links take the host of the page the sender opened, so they carry that
+  // host until a domain is added here. Adding one later is a single line:
+  //   "routes": [{ "pattern": "cards.your-domain.com", "custom_domain": true }],
+  // deployed with the zone in this same Cloudflare account.
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "christmas-letters",
+      // From `pnpm exec wrangler d1 create christmas-letters` (docs/deploy.md).
+      "database_id": "replace-with-your-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "AUDIO", "bucket_name": "christmas-letters-audio" },
+    // Prerendered-page store for OpenNext's r2IncrementalCache (open-next.config.ts).
+    // Not public: only the Worker reads and writes it.
+    { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "christmas-letters-cache" }
+  ]
+}

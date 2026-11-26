@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { STICKER_IDS } from "@/lib/letter/model";
+import { STICKER_IDS, STICKER_MATERIALS, type StickerMaterial } from "@/lib/letter/model";
 
 const entrySchema = z.object({
   id: z.enum(STICKER_IDS),
   label: z.string().min(1),
-  material: z.enum(["paint", "foil", "pearl"]),
+  material: z.enum(STICKER_MATERIALS),
   src: z.string().startsWith("/assets/stickers/"),
 });
 
@@ -13,8 +13,21 @@ const manifestSchema = z.object({
   stickers: z.array(entrySchema),
 });
 
-export type StickerEntry = z.infer<typeof entrySchema>;
-export type StickerManifest = z.infer<typeof manifestSchema>;
+/**
+ * A sticker the 3D layer can bake. Built-in entries come from the manifest;
+ * uploaded entries live on the letter itself and use a data URL for `src`.
+ */
+export interface StickerEntry {
+  id: string;
+  label: string;
+  material: StickerMaterial;
+  src: string;
+}
+
+export interface StickerManifest {
+  set: string;
+  stickers: StickerEntry[];
+}
 
 /** Validate manifest.json from scripts/stickers/cutout.py; throws on a bad file. */
 export function parseStickerManifest(json: unknown): StickerManifest {

@@ -78,6 +78,7 @@ function draftOf(input: LetterDraft): LetterDraft {
     seal: input.seal,
     recipientName: input.recipientName,
     elements: input.elements,
+    customStickers: input.customStickers ?? [],
     audioUrl: input.audioUrl,
     audioName: input.audioName,
   };

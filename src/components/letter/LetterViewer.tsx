@@ -108,6 +108,7 @@ export function LetterViewer({ id }: { id: string }) {
             isPaused={false}
             flyIn={false}
             elements={content.elements}
+            customStickers={content.customStickers}
             paper={content.paper}
             onToggleOpen={() => setOpen((v) => !v)}
             onFirstFrame={() => {

@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import { FIXED_SEAL } from "@/lib/envelope/fixedSeal";
 import { slotCore, SLOTS, slotPlacement, TEXT_SLOTS } from "@/lib/card/slots";
 import { PAGE_BOX, settle, type ElementShape } from "@/lib/card/elementBounds";
-import { LIMITS, type CardElement, type Face, type FontId, type Ink, type LetterDraft, type Placement, type TextSlot } from "@/lib/letter/model";
+import { LIMITS, type CardElement, type CustomSticker, type Face, type FontId, type Ink, type LetterDraft, type Placement, type TextSlot } from "@/lib/letter/model";
 import { TEMPLATE_MAP } from "@/lib/templates";
 import type { CardTemplateId } from "@/lib/types";
 
@@ -14,9 +14,10 @@ export type EditorElement = CardElement & { uid: string };
 
 export type EditorDraft = Omit<LetterDraft, "elements"> & { elements: EditorElement[] };
 
-/** One undo step: the elements, and the template if that step changed it. */
+/** One undo step: the elements, the uploaded sticker library, and the template if it changed. */
 interface Snapshot {
   elements: EditorElement[];
+  customStickers?: CustomSticker[];
   templateId?: CardTemplateId;
 }
 
@@ -38,6 +39,8 @@ type EnvelopeFields = Pick<
 
 export type EditorAction =
   | { type: "add-sticker"; stickerId: string; face: Face; uid: string; at?: { x: number; y: number } }
+  | { type: "add-custom-sticker"; sticker: CustomSticker }
+  | { type: "remove-custom-sticker"; id: string }
   | { type: "add-text"; face: Face; uid: string; x: number; y: number; text: string; font: FontId; ink: Ink }
   | { type: "transform"; uid: string; patch: Partial<Pick<Placement, "face" | "x" | "y" | "scale" | "rotation">>; record: boolean }
   | { type: "update-text"; uid: string; patch: Partial<{ text: string; font: FontId; ink: Ink }> }
@@ -136,7 +139,7 @@ export function migrateDraftText(draft: EditorDraft): EditorDraft {
       ? elements.map((e) => (e.kind === "text" && e.slot === "greeting" ? { ...e, text: name } : e))
       : [...elements, newSlotElement("greeting", name, defaultFont(draft.templateId))];
   }
-  return { ...draft, elements, envelopeColor: "ivory", recipientName: slotText({ elements }, "greeting").trim() };
+  return { ...draft, elements, customStickers: draft.customStickers ?? [], envelopeColor: "ivory", recipientName: slotText({ elements }, "greeting").trim() };
 }
 
 export function createInitialDraft(templateId: CardTemplateId): EditorDraft {
@@ -147,6 +150,7 @@ export function createInitialDraft(templateId: CardTemplateId): EditorDraft {
     seal: { ...FIXED_SEAL },
     recipientName: "",
     elements: [],
+    customStickers: [],
     audioUrl: null,
     audioName: null,
   };
@@ -190,14 +194,50 @@ function countOn(elements: EditorElement[], kind: CardElement["kind"], face: Fac
   return elements.filter((e) => e.kind === kind && e.face === face).length;
 }
 
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+/**
+ * Where the next tap of the same sticker goes. Tapping a sticker repeatedly
+ * builds a little pile: each copy lands on a golden-angle spiral around the
+ * first one, so the copies fan out instead of hiding behind each other.
+ * Derived from the copy count, so undo/redo replays the same layout.
+ */
+function stackSpot(
+  elements: EditorElement[],
+  stickerId: string,
+  face: Face,
+): { x: number; y: number; rotation: number } {
+  const same = elements.filter(
+    (e): e is Extract<EditorElement, { kind: "sticker" }> => e.kind === "sticker" && e.stickerId === stickerId && e.face === face,
+  );
+  const anchor = same[0];
+  if (!anchor) return { x: 0.5, y: 0.5, rotation: 0 };
+  const index = same.length;
+  const angle = (index - 1) * GOLDEN_ANGLE;
+  const radius = 0.05 + 0.022 * (index % 4);
+  return {
+    x: clamp(anchor.x + Math.cos(angle) * radius, 0.02, 0.98),
+    y: clamp(anchor.y + Math.sin(angle) * radius, 0.02, 0.98),
+    rotation: ((index % 5) - 2) * 0.055,
+  };
+}
+
 function topZ(elements: EditorElement[], face: Face): number {
   return elements.filter((e) => e.face === face).reduce((max, e) => Math.max(max, e.z + 1), 0);
 }
 
+function recordSnapshot(state: EditorState): Snapshot {
+  return { elements: state.draft.elements, customStickers: state.draft.customStickers };
+}
+
+function withDraft(state: EditorState, patch: Partial<EditorDraft>, record: boolean): EditorState {
+  if (!record) return { ...state, draft: { ...state.draft, ...patch } };
+  const past = [...state.past, recordSnapshot(state)].slice(-UNDO_DEPTH);
+  return { ...state, past, future: [], draft: { ...state.draft, ...patch } };
+}
+
 function withElements(state: EditorState, elements: EditorElement[], record: boolean): EditorState {
-  if (!record) return { ...state, draft: { ...state.draft, elements } };
-  const past = [...state.past, { elements: state.draft.elements }].slice(-UNDO_DEPTH);
-  return { ...state, past, future: [], draft: { ...state.draft, elements } };
+  return withDraft(state, { elements }, record);
 }
 
 function mapElement(state: EditorState, uid: string, fn: (e: EditorElement) => EditorElement): EditorElement[] {
@@ -228,18 +268,31 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return withElements(state, writeSlot(state.draft, action.slot, { font: action.font }), true);
     case "add-sticker": {
       if (countOn(elements, "sticker", action.face) >= LIMITS.stickersPerFace) return state;
+      // No drop point (a tap in the tray): pile onto the ones already there.
+      const spot = action.at ? null : stackSpot(elements, action.stickerId, action.face);
       const added: EditorElement = {
         kind: "sticker",
         stickerId: action.stickerId,
         uid: action.uid,
         face: action.face,
-        x: clamp(action.at?.x ?? 0.5, 0, 1),
-        y: clamp(action.at?.y ?? 0.5, 0, 1),
+        x: clamp(action.at?.x ?? spot?.x ?? 0.5, 0, 1),
+        y: clamp(action.at?.y ?? spot?.y ?? 0.5, 0, 1),
         scale: 1,
-        rotation: 0,
+        rotation: spot?.rotation ?? 0,
         z: topZ(elements, action.face),
       };
       return { ...withElements(state, [...elements, added], true), selected: action.uid, focusFace: action.face };
+    }
+    case "add-custom-sticker": {
+      const customStickers = state.draft.customStickers ?? [];
+      if (customStickers.length >= LIMITS.customStickers || customStickers.some((s) => s.id === action.sticker.id)) return state;
+      return { ...withDraft(state, { customStickers: [...customStickers, action.sticker] }, true), selected: null };
+    }
+    case "remove-custom-sticker": {
+      const customStickers = (state.draft.customStickers ?? []).filter((s) => s.id !== action.id);
+      const kept = elements.filter((e) => !(e.kind === "sticker" && e.stickerId === action.id));
+      const selected = kept.some((e) => e.uid === state.selected) ? state.selected : null;
+      return { ...withDraft(state, { customStickers, elements: kept }, true), selected };
     }
     case "add-text": {
       if (countOn(elements, "text", action.face) >= LIMITS.textsPerFace) return state;
@@ -336,7 +389,7 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       if (action.templateId === state.draft.templateId) return state;
       // The template only changes the cover; everything the sender placed stays
       // where it is, and the change itself can be undone.
-      const past = [...state.past, { elements, templateId: state.draft.templateId }].slice(-UNDO_DEPTH);
+      const past = [...state.past, { elements, customStickers: state.draft.customStickers, templateId: state.draft.templateId }].slice(-UNDO_DEPTH);
       return {
         ...state,
         past,
@@ -352,10 +405,11 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return {
         ...state,
         past: state.past.slice(0, -1),
-        future: [...state.future, { elements, templateId: previous.templateId && state.draft.templateId }].slice(-UNDO_DEPTH),
+        future: [...state.future, { elements, customStickers: state.draft.customStickers, templateId: previous.templateId && state.draft.templateId }].slice(-UNDO_DEPTH),
         draft: {
           ...state.draft,
           elements: previous.elements,
+          ...(previous.customStickers !== undefined ? { customStickers: previous.customStickers } : {}),
           ...(previous.templateId ? { templateId: previous.templateId } : {}),
         },
         selected: stillThere ? state.selected : null,
@@ -367,10 +421,11 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return {
         ...state,
         future: state.future.slice(0, -1),
-        past: [...state.past, { elements, templateId: next.templateId && state.draft.templateId }].slice(-UNDO_DEPTH),
+        past: [...state.past, { elements, customStickers: state.draft.customStickers, templateId: next.templateId && state.draft.templateId }].slice(-UNDO_DEPTH),
         draft: {
           ...state.draft,
           elements: next.elements,
+          ...(next.customStickers !== undefined ? { customStickers: next.customStickers } : {}),
           ...(next.templateId ? { templateId: next.templateId } : {}),
         },
         selected: next.elements.some((e) => e.uid === state.selected) ? state.selected : null,

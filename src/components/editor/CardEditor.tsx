@@ -223,6 +223,7 @@ export function CardEditor({ state, dispatch, paper, page, zoom, preview, locked
               ? state.draft.elements.filter((el) => !(el.kind === "text" && el.slot))
               : displayElements(state.draft)
         }
+        customStickers={state.draft.customStickers}
         paper={paper}
         zoom={zoom * editorFit()}
         // The style picker shows the cover only: drag to turn it, but with no

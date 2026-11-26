@@ -1,7 +1,7 @@
 import type { ApiResponse } from "@/lib/types";
 
-/** Largest JSON body the letter APIs accept (a full card is a few KB). */
-export const MAX_JSON_BYTES = 64 * 1024;
+/** Largest JSON body the letter APIs accept (text plus uploaded stickers). */
+export const MAX_JSON_BYTES = 1_000_000;
 
 export function ok<T>(data: T, status = 200): Response {
   return Response.json({ success: true, data } satisfies ApiResponse<T>, { status });

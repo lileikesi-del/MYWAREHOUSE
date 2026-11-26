@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LIMITS } from "@/lib/letter/model";
 import { createEditorState, createInitialDraft, editorReducer, type EditorAction, type EditorState } from "./editorState";
 import { clampZoom, pageLabel, PAGES, stepZoom, ZOOM_MAX, ZOOM_MIN } from "./pages";
 
@@ -84,10 +85,35 @@ describe("transform across pages", () => {
   });
 
   it("stays put when the other page is full", () => {
-    const full = Array.from({ length: 20 }, (_, i) => add(`r${i}`, "inside-right"));
+    const full = Array.from({ length: LIMITS.stickersPerFace }, (_, i) => add(`r${i}`, "inside-right"));
     const s = run(fresh(), ...full, add("a", "inside-left"), { type: "transform", uid: "a", patch: { face: "inside-right", x: 0.2 }, record: true });
     expect(at(s, "a")?.face).toBe("inside-left");
     expect(at(s, "a")?.x).toBe(0.5);
+  });
+});
+
+describe("repeated taps", () => {
+  const spot = (s: EditorState, uid: string) => s.draft.elements.find((e) => e.uid === uid);
+
+  it("fans the copies of one sticker out instead of stacking them at one point", () => {
+    const s = run(fresh(), add("a"), add("b"), add("c"), add("d"));
+    const spots = s.draft.elements.map((e) => `${e.x.toFixed(3)},${e.y.toFixed(3)}`);
+    expect(new Set(spots).size).toBe(4);
+    // The first copy keeps the middle; the rest stay close to it.
+    expect(spot(s, "a")?.x).toBe(0.5);
+    for (const e of s.draft.elements) {
+      expect(e.x).toBeGreaterThan(0);
+      expect(e.x).toBeLessThan(1);
+      expect(e.y).toBeGreaterThan(0);
+      expect(e.y).toBeLessThan(1);
+    }
+  });
+
+  it("replays the same pile through undo and redo", () => {
+    const s = run(fresh(), add("a"), add("b"), add("c"));
+    const x = spot(s, "c")?.x;
+    const back = run(s, { type: "undo" }, { type: "redo" });
+    expect(spot(back, "c")?.x).toBe(x);
   });
 });
 

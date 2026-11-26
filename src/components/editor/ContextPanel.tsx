@@ -178,8 +178,14 @@ export function ContextPanel({ tool, state, dispatch, editingSlot, onAddSticker,
       );
     case "stickers":
       return (
-        <Section title="贴纸" hint={`点一下放到${page}，或者拖到卡片上`}>
-          <StickerTray onTap={(id) => onAddSticker(id)} onDrop={(id, clientX, clientY) => onAddSticker(id, { clientX, clientY })} />
+        <Section title="贴纸" hint={`点一下放到${page}，连点会叠成一叠；也可以拖到卡片上`}>
+          <StickerTray
+            onTap={(id) => onAddSticker(id)}
+            onDrop={(id, clientX, clientY) => onAddSticker(id, { clientX, clientY })}
+            customStickers={state.draft.customStickers}
+            onUpload={(sticker) => dispatch({ type: "add-custom-sticker", sticker })}
+            onRemoveCustom={(id) => dispatch({ type: "remove-custom-sticker", id })}
+          />
         </Section>
       );
     case "text": {

@@ -4,6 +4,7 @@ import type { CanvasLike } from "@/lib/canvasFactory";
 import type { CardElement, Face } from "@/lib/letter/model";
 import { MATERIAL_PRESETS } from "@/lib/reliefCore";
 import { loadStickerManifest, loadStickerSurface } from "@/lib/stickers/stickerSurface";
+import type { StickerEntry } from "@/lib/stickers/stickerManifest";
 import { FACE_FRAMES, quadCorners } from "./elementLayout";
 import type { ElementShape } from "./elementBounds";
 import { slotPlacement, SLOTS } from "./slots";
@@ -124,10 +125,12 @@ const SHARED_MATERIAL = {
   polygonOffsetUnits: -2,
 } as const;
 
-async function buildMaterial(e: LayerElement, anisotropy: number): Promise<{ material: THREE.Material; aspect: number; widthFraction: number } | null> {
+async function buildMaterial(e: LayerElement, anisotropy: number, customStickers: StickerEntry[]): Promise<{ material: THREE.Material; aspect: number; widthFraction: number } | null> {
   if (e.kind === "sticker") {
     const manifest = await loadStickerManifest();
-    const entry = manifest.stickers.find((s) => s.id === e.stickerId);
+    // Uploaded stickers travel with the letter, so they are looked up here
+    // rather than in the built-in manifest.
+    const entry = manifest.stickers.find((s) => s.id === e.stickerId) ?? customStickers.find((s) => s.id === e.stickerId);
     if (!entry) return null; // asset not delivered yet
     const sticker = await loadStickerSurface(entry);
     const surface = canvasTexture(sticker.surface, false, anisotropy);
@@ -188,6 +191,8 @@ export function createElementLayer(
    * light (which, on bright foil, overshot the bloom threshold into a haze).
    */
   decorateSticker?: (material: THREE.Material) => void,
+  /** A getter: the editor can add an upload without rebuilding the layer. */
+  customStickers?: () => StickerEntry[],
 ): ElementLayer {
   const entries = new Map<string, Entry>();
   const bends: Record<Face, number> = { "inside-left": 0, "inside-right": 0 };
@@ -222,7 +227,7 @@ export function createElementLayer(
   const load = async (entry: Entry) => {
     const version = ++entry.version;
     try {
-      const built = await buildMaterial(entry.element, anisotropy);
+      const built = await buildMaterial(entry.element, anisotropy, customStickers?.() ?? []);
       if (built && entry.element.kind === "sticker") decorateSticker?.(built.material);
       if (disposed || version !== entry.version || entries.get(entry.key) !== entry) {
         if (built) disposeMaterial(built.material);

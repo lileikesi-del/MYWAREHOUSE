@@ -33,9 +33,9 @@ __pycache__/
 .env*
 !.env.example
 
-# Personal deploy config: copy wrangler.jsonc.example and fill in your own
-# database_id and domain (docs/deploy.md). Kept out of git.
-wrangler.jsonc
+# Deploy config. Upstream keeps this out of git because each person fills in
+# their own database_id. Here it is tracked on purpose: Cloudflare's Git
+# integration reads bindings from the repo at build time.
 
 # Cloudflare build output
 .open-next/
