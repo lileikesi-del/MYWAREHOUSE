@@ -15,8 +15,8 @@
     {
       "binding": "DB",
       "database_name": "christmas-letters",
-      // From `pnpm exec wrangler d1 create christmas-letters` (docs/deploy.md).
-      "database_id": "replace-with-your-d1-database-id",
+      // Created in the Cloudflare dashboard: Storage & Databases -> D1.
+      "database_id": "3bdd3c6e-5adf-4f57-98cd-3f9454411d45",
       "migrations_dir": "migrations"
     }
   ],
